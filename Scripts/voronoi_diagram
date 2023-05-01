@@ -1,0 +1,175 @@
+using UnityEngine;
+using System.Collections.Generic;
+using UnityEngine.UI;
+using csDelaunay;
+
+public class voronoi_diagram : MonoBehaviour
+    {
+    // The SetupManager and the bounds for the screen
+    public GameObject SetupManager;
+    private float x_bound;
+    private float y_bound;
+
+
+    public bool drawTime; // Lets the function know it is time to draw the diagram
+    public int count;  // The total number of honeycomb cells
+    public Text countText; // The text to display count too
+
+    public List<Vector3> points3D;
+    private List<Vector3> finalpoints3D;
+
+    // The number of polygons/sites we want
+    public int polygonNumber = 0;
+    public int size;
+
+    // This is where we will store the resulting data
+    private Dictionary<Vector2f, Site> sites;
+    private List<Edge> edges;
+
+    void Start()
+        {
+        // Get the Set Up Manager and set bounds
+        SetupManager = GameObject.Find("SetUp Manager");
+        x_bound = SetupManager.GetComponent<SetUp>().x_bound;
+        y_bound = SetupManager.GetComponent<SetUp>().y_bound;
+
+
+        
+        }
+
+    // Testing method, No longer used
+    private List<Vector2f> CreateRandomPoint()
+        {
+        // Use Vector2f, instead of Vector2
+        // Vector2f is pretty much the same than Vector2, but like you could run Voronoi in another thread
+        List<Vector2f> points = new List<Vector2f>();
+        for (int i = 0; i < polygonNumber; i++)
+            {
+            points.Add(new Vector2f(Random.Range(0, size), Random.Range(0, size)));
+            }
+
+        return points;
+        }
+
+    // Here is a very simple way to display the result using a simple bresenham line algorithm
+    // Just attach this script to a quad
+    private void DisplayVoronoiDiagram()
+        {
+        Texture2D tx = new Texture2D((int) (size), (int)(size));
+        foreach (KeyValuePair<Vector2f, Site> kv in sites)
+            {
+            tx.SetPixel((int)kv.Key.x, (int)kv.Key.y, Color.red);
+            }
+        foreach (Edge edge in edges)
+            {
+            // if the edge doesn't have clippedEnds, if was not within the bounds, dont draw it
+            if (edge.ClippedEnds == null) continue;
+
+            DrawLine(edge.ClippedEnds[LR.LEFT], edge.ClippedEnds[LR.RIGHT], tx, Color.black);
+            }
+        tx.Apply();
+
+        this.GetComponent<Renderer>().material.mainTexture = tx;
+        }
+
+    // Bresenham line algorithm
+    private void DrawLine(Vector2f p0, Vector2f p1, Texture2D tx, Color c, int offset = 0)
+        {
+        int x0 = (int)p0.x;
+        int y0 = (int)p0.y;
+        int x1 = (int)p1.x;
+        int y1 = (int)p1.y;
+
+        int dx = Mathf.Abs(x1 - x0);
+        int dy = Mathf.Abs(y1 - y0);
+        int sx = x0 < x1 ? 1 : -1;
+        int sy = y0 < y1 ? 1 : -1;
+        int err = dx - dy;
+
+        while (true)
+            {
+            tx.SetPixel(x0 + offset, y0 + offset, c);
+
+            if (x0 == x1 && y0 == y1) break;
+            int e2 = 2 * err;
+            if (e2 > -dy)
+                {
+                err -= dy;
+                x0 += sx;
+                }
+            if (e2 < dx)
+                {
+                err += dx;
+                y0 += sy;
+                }
+            }
+        }
+
+    private void removeDoubles()
+        {
+        List<Vector3> doubledPoints = new List<Vector3>();
+        foreach(Vector3 point in points3D)
+            {
+            foreach (Vector3 potentialDouble in points3D)
+                {
+                if (point != potentialDouble && !doubledPoints.Contains(point))
+                    {
+                    float dis = Vector3.Distance(point, potentialDouble);
+                    if (dis <= .5)
+                        {
+                        finalpoints3D.Remove(potentialDouble);
+                        doubledPoints.Add(potentialDouble);
+                        }
+                    }
+                }
+            }
+        }
+
+    private void Update()
+        {
+        if (drawTime)
+            {
+            finalpoints3D = new List<Vector3>(points3D);
+
+            // Remove from the list any points that are very close (these are errors)
+            removeDoubles();
+
+            //Get Total Count of shapes
+            count = finalpoints3D.Count;
+            Debug.Log("Total Comb: " + count);
+
+            //Display the total shape count in the sim
+            countText.gameObject.SetActive(true);
+            countText.text = "Total Comb: " + count.ToString();
+            
+
+            // Convert the points3D List to a Vector2f list
+            List<Vector2f> points = new List<Vector2f>();
+
+            foreach (Vector3 point in finalpoints3D)
+                {
+                Vector2f vecf = new Vector2f((point.x + x_bound) * (size / (2 * x_bound)), (point.y + y_bound) * (size / (2 * y_bound)));
+                points.Add(vecf);
+                }
+
+            // Create the bounds of the voronoi diagram
+            // Use Rectf instead of Rect; it's a struct just like Rect and does pretty much the same,
+            // but like that it allows you to run the delaunay library outside of unity (which mean also in another tread)
+            Rectf bounds = new Rectf(0, 0, size, size);
+
+            // There is a two ways you can create the voronoi diagram: with or without the lloyd relaxation
+            // Here I used it with 2 iterations of the lloyd relaxation
+            Voronoi voronoi = new Voronoi(points, bounds);
+
+
+            // Now retreive the edges from it, and the new sites position if you used lloyd relaxtion
+            sites = voronoi.SitesIndexedByLocation;
+            edges = voronoi.Edges;
+
+            // Draw
+            DisplayVoronoiDiagram();
+
+            drawTime = false;
+            }
+        }
+    }
