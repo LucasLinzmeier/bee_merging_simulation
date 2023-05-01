@@ -22,14 +22,14 @@ public class WaveSpawn : MonoBehaviour
     private float y_bound;
     private int num_bee_merge;
 
-    public VoronoiDiagram Voronoi;
+    public voronoi_diagram Voronoi;
 
     private float speed;
     // Start is called before the first frame update
     void Start()
         {
         SetupManager = GameObject.Find("SetUp Manager");
-        Voronoi = GameObject.Find("Voronoi Manager").GetComponent<VoronoiDiagram>();
+        Voronoi = GameObject.Find("Voronoi Manager").GetComponent<voronoi_diagram>();
         speed = SetupManager.GetComponent<SetUp>().speed;
         y_bound = SetupManager.GetComponent<SetUp>().y_bound;
         num_bee_merge = SetupManager.GetComponent<SetUp>().numbee_merge;
